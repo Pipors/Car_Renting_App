@@ -1,0 +1,263 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserType {
+  RENTER
+  AGENCY
+  ADMIN
+}
+
+enum BookingStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  HELD
+  CAPTURED
+  RELEASED
+  REFUNDED
+  PARTIALLY_DEDUCTED
+}
+
+enum DisputeStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+}
+
+model User {
+  id                 String          @id @default(uuid())
+  email              String          @unique
+  passwordHash       String
+  userType           UserType
+  firstName          String
+  lastName           String
+  phone              String?
+  phoneVerified      Boolean         @default(false)
+  profilePhoto       String?
+  licenseUrl         String?
+  isVerified         Boolean         @default(false)
+  isBanned           Boolean         @default(false)
+  banReason          String?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  agency             Agency?
+  refreshTokens      RefreshToken[]
+  bookingsAsRenter   Booking[]       @relation("RenterBookings")
+  agencyReviews      AgencyReview[]  @relation("ReviewerReviews")
+  renterRatings      RenterRating[]  @relation("RatedRenter")
+  renterDisputes     RenterDispute[] @relation("DisputingRenter")
+
+  @@map("users")
+}
+
+model Agency {
+  id                 String         @id @default(uuid())
+  userId             String         @unique
+  name               String
+  description        String?
+  address            String
+  city               String
+  country            String
+  logoUrl            String?
+  licenseNumber      String         @unique
+  isApproved         Boolean        @default(false)
+  avgRating          Float          @default(0)
+  totalReviews       Int            @default(0)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  user               User           @relation(fields: [userId], references: [id])
+  cars               Car[]
+  bookings           Booking[]
+  agencyReviews      AgencyReview[]
+  renterRatingsGiven RenterRating[] @relation("RatingAgency")
+
+  @@map("agencies")
+}
+
+model Car {
+  id            String            @id @default(uuid())
+  agencyId      String
+  make          String
+  model         String
+  year          Int
+  type          String
+  transmission  String
+  fuelType      String
+  seats         Int
+  pricePerDay   Decimal           @db.Decimal(10, 2)
+  depositAmount Decimal           @db.Decimal(10, 2)
+  description   String?
+  features      String[]
+  isAvailable   Boolean           @default(true)
+  isDeleted     Boolean           @default(false)
+  city          String
+  latitude      Float?
+  longitude     Float?
+  avgRating     Float             @default(0)
+  totalBookings Int               @default(0)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  agency        Agency            @relation(fields: [agencyId], references: [id])
+  photos        CarPhoto[]
+  bookings      Booking[]
+  availability  CarAvailability[]
+
+  @@map("cars")
+}
+
+model CarPhoto {
+  id        String   @id @default(uuid())
+  carId     String
+  url       String
+  isPrimary Boolean  @default(false)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  car       Car      @relation(fields: [carId], references: [id])
+
+  @@map("car_photos")
+}
+
+model CarAvailability {
+  id        String   @id @default(uuid())
+  carId     String
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
+  reason    String?
+  createdAt DateTime @default(now())
+  car       Car      @relation(fields: [carId], references: [id])
+
+  @@map("car_availability")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@map("refresh_tokens")
+}
+
+model Booking {
+  id                 String        @id @default(uuid())
+  carId              String
+  renterId           String
+  agencyId           String
+  status             BookingStatus @default(PENDING)
+  pickupDate         DateTime      @db.Date
+  returnDate         DateTime      @db.Date
+  totalDays          Int
+  pricePerDay        Decimal       @db.Decimal(10, 2)
+  totalAmount        Decimal       @db.Decimal(10, 2)
+  depositAmount      Decimal       @db.Decimal(10, 2)
+  notes              String?
+  rejectionReason    String?
+  cancellationReason String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  car                Car           @relation(fields: [carId], references: [id])
+  renter             User          @relation("RenterBookings", fields: [renterId], references: [id])
+  agency             Agency        @relation(fields: [agencyId], references: [id])
+  payment            Payment?
+  agencyReview       AgencyReview?
+  renterRating       RenterRating?
+
+  @@map("bookings")
+}
+
+model Payment {
+  id                    String        @id @default(uuid())
+  bookingId             String        @unique
+  renterId              String
+  stripePaymentIntentId String        @unique
+  stripeChargeId        String?
+  amount                Decimal       @db.Decimal(10, 2)
+  depositAmount         Decimal       @db.Decimal(10, 2)
+  currency              String        @default("usd")
+  status                PaymentStatus @default(PENDING)
+  deductedAmount        Decimal?      @db.Decimal(10, 2)
+  deductionReason       String?
+  refundedAt            DateTime?
+  capturedAt            DateTime?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  booking               Booking       @relation(fields: [bookingId], references: [id])
+
+  @@map("payments")
+}
+
+model AgencyReview {
+  id         String   @id @default(uuid())
+  bookingId  String   @unique
+  agencyId   String
+  reviewerId String
+  rating     Int
+  comment    String
+  isVisible  Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  booking    Booking  @relation(fields: [bookingId], references: [id])
+  agency     Agency   @relation(fields: [agencyId], references: [id])
+  reviewer   User     @relation("ReviewerReviews", fields: [reviewerId], references: [id])
+
+  @@map("agency_reviews")
+}
+
+model RenterRating {
+  id        String   @id @default(uuid())
+  bookingId String   @unique
+  renterId  String
+  agencyId  String
+  rating    Int
+  tags      String[]
+  comment   String?
+  createdAt DateTime @default(now())
+  booking   Booking  @relation(fields: [bookingId], references: [id])
+  renter    User     @relation("RatedRenter", fields: [renterId], references: [id])
+  agency    Agency   @relation("RatingAgency", fields: [agencyId], references: [id])
+
+  @@map("renter_ratings")
+}
+
+model RenterReputation {
+  id               String   @id @default(uuid())
+  renterId         String   @unique
+  avgScore         Float    @default(0)
+  totalRatings     Int      @default(0)
+  onTimeCount      Int      @default(0)
+  cleanReturnCount Int      @default(0)
+  minorDamageCount Int      @default(0)
+  majorDamageCount Int      @default(0)
+  noShowCount      Int      @default(0)
+  updatedAt        DateTime @updatedAt
+
+  @@map("renter_reputation")
+}
+
+model RenterDispute {
+  id         String        @id @default(uuid())
+  ratingId   String        @unique
+  renterId   String
+  reason     String
+  status     DisputeStatus @default(OPEN)
+  adminNotes String?
+  resolvedAt DateTime?
+  createdAt  DateTime      @default(now())
+  renter     User          @relation("DisputingRenter", fields: [renterId], references: [id])
+
+  @@map("renter_disputes")
+}
