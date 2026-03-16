@@ -1,0 +1,124 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  AGENCY
+  RENTER
+}
+
+enum BookingStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Agency-specific fields
+  agency    Agency?
+
+  // Renter-specific fields
+  renter    Renter?
+}
+
+model Agency {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyName String
+  phone       String?
+  address     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  cars        Car[]
+  bookings    Booking[]
+  ratingsGiven RenterRating[]
+}
+
+model Renter {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bookings       Booking[]
+  ratingsReceived RenterRating[]
+
+  // Aggregated reputation (updated via triggers / service layer)
+  reputationScore Float @default(0)
+  ratingCount     Int   @default(0)
+}
+
+model Car {
+  id           String   @id @default(cuid())
+  agencyId     String
+  agency       Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  make         String
+  model        String
+  year         Int
+  pricePerDay  Float
+  depositAmount Float
+  description  String?
+  imageUrl     String?
+  available    Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  bookings     Booking[]
+}
+
+model Booking {
+  id            String        @id @default(cuid())
+  carId         String
+  car           Car           @relation(fields: [carId], references: [id])
+  renterId      String
+  renter        Renter        @relation(fields: [renterId], references: [id])
+  agencyId      String
+  agency        Agency        @relation(fields: [agencyId], references: [id])
+  status        BookingStatus @default(PENDING)
+  startDate     DateTime
+  endDate       DateTime
+  totalPrice    Float
+  depositAmount Float
+  depositPaid   Boolean       @default(false)
+  stripePaymentIntentId String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  rating        RenterRating?
+}
+
+model RenterRating {
+  id        String   @id @default(cuid())
+  bookingId String   @unique
+  booking   Booking  @relation(fields: [bookingId], references: [id])
+  renterId  String
+  renter    Renter   @relation(fields: [renterId], references: [id])
+  agencyId  String
+  agency    Agency   @relation(fields: [agencyId], references: [id])
+  score     Int      // 1-5
+  comment   String?
+  createdAt DateTime @default(now())
+}
