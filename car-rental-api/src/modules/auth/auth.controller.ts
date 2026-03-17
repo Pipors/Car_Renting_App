@@ -7,7 +7,7 @@ const cookieOptions = {
   httpOnly: true,
   sameSite: "strict" as const,
   secure: env.NODE_ENV === "production",
-  maxAge: 7 * 24 * 60 * 60 * 1000
+  maxAge: 48 * 60 * 60 * 1000
 };
 
 export const authController = {

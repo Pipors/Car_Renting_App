@@ -3,11 +3,14 @@ import { useAuthStore } from "@/stores/auth.store";
 
 export default function AgencyLayout() {
   const user = useAuthStore((s) => s.user);
+  const agencyLabel = user?.agency?.name
+    ? `Agency - ${user.agency.name}`
+    : `Agency - ${user?.firstName ?? "Account"}`;
 
   return (
     <div className="grid min-h-screen grid-cols-1 md:grid-cols-[260px_1fr]">
       <aside className="border-r border-brand-200 bg-white p-4">
-        <h2 className="mb-4 text-lg font-semibold text-brand-700">Agency</h2>
+        <h2 className="mb-4 text-lg font-semibold text-brand-700">{agencyLabel}</h2>
         <nav className="space-y-2 text-sm">
           <Link className="block" to="/agency/dashboard">Dashboard</Link>
           <Link className="block" to="/agency/listings">Listings</Link>

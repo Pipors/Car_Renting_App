@@ -2,6 +2,8 @@ import { BookingStatus, Prisma } from "@prisma/client";
 import { prisma } from "../../config/database";
 import { makeMeta } from "../../utils/pagination";
 
+const requireApprovedAgency = process.env.NODE_ENV === "production";
+
 const daysBetween = (start: Date, end: Date) => {
   const ms = end.getTime() - start.getTime();
   return Math.max(Math.ceil(ms / (1000 * 60 * 60 * 24)), 1);
@@ -14,7 +16,7 @@ export const bookingsService = {
       include: { agency: true }
     });
 
-    if (!car || car.isDeleted || !car.isAvailable || !car.agency.isApproved) {
+    if (!car || car.isDeleted || !car.isAvailable || (requireApprovedAgency && !car.agency.isApproved)) {
       throw new Error("Car not available for booking");
     }
 
@@ -112,7 +114,18 @@ export const bookingsService = {
       prisma.booking.count({ where }),
       prisma.booking.findMany({
         where,
-        include: { payment: true, car: true },
+        include: {
+          payment: true,
+          car: true,
+          renter: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true
+            }
+          }
+        },
         orderBy: { createdAt: "desc" },
         skip,
         take: limit
@@ -186,7 +199,9 @@ export const bookingsService = {
   async complete(agencyId: string, bookingId: string) {
     const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
     if (!booking || booking.agencyId !== agencyId) return null;
-    if (booking.status !== "APPROVED") throw new Error("Only approved bookings can be completed");
+    if (!["APPROVED", "ACTIVE"].includes(booking.status)) {
+      throw new Error("Only approved or active bookings can be completed");
+    }
 
     await prisma.payment.updateMany({
       where: { bookingId },

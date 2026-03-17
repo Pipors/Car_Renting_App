@@ -16,6 +16,8 @@ const RenterLayout = lazy(() => import("@/layouts/RenterLayout"));
 const AgencyLayout = lazy(() => import("@/layouts/AgencyLayout"));
 const AdminLayout = lazy(() => import("@/layouts/AdminLayout"));
 const MyBookingsPage = lazy(() => import("@/pages/renter/MyBookingsPage"));
+const RenterCatalogPage = lazy(() => import("@/pages/renter/CatalogPage"));
+const NewBookingPage = lazy(() => import("@/pages/renter/NewBookingPage"));
 const RenterBookingDetailPage = lazy(() => import("@/pages/renter/BookingDetailPage"));
 const BookingCheckoutPage = lazy(() => import("@/pages/renter/BookingCheckoutPage"));
 const MyReputationPage = lazy(() => import("@/pages/renter/MyReputationPage"));
@@ -71,7 +73,9 @@ const router = createBrowserRouter([
         element: withSuspense(<RenterLayout />),
         children: [
           { path: "dashboard", element: withSuspense(<MyBookingsPage />) },
+          { path: "catalog", element: withSuspense(<RenterCatalogPage />) },
           { path: "bookings", element: withSuspense(<MyBookingsPage />) },
+          { path: "bookings/new", element: withSuspense(<NewBookingPage />) },
           { path: "bookings/:id", element: withSuspense(<RenterBookingDetailPage />) },
           { path: "bookings/:id/checkout", element: withSuspense(<BookingCheckoutPage />) },
           { path: "reputation", element: withSuspense(<MyReputationPage />) },

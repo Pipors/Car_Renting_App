@@ -61,7 +61,11 @@ export interface Car {
   seats: number;
   pricePerDay: string;
   depositAmount: string;
+  isAvailable?: boolean;
+  currentlyRented?: boolean;
+  rentalStatus?: "RENTED" | "AVAILABLE";
   primaryPhoto?: string | null;
+  photos?: Array<{ id: string; url: string; isPrimary?: boolean; order?: number }>;
   features?: string[];
   agency?: Agency;
 }
@@ -79,5 +83,11 @@ export interface Booking {
   depositAmount: string;
   notes?: string;
   car?: Car;
+  renter?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
   paymentIntent?: { clientSecret: string };
 }

@@ -7,6 +7,7 @@ export default function RenterLayout() {
         <h2 className="mb-4 text-lg font-semibold text-brand-700">Renter</h2>
         <nav className="space-y-2 text-sm">
           <Link className="block" to="/renter/dashboard">Dashboard</Link>
+          <Link className="block" to="/renter/catalog">Catalog</Link>
           <Link className="block" to="/renter/bookings">My Bookings</Link>
           <Link className="block" to="/renter/reputation">My Reputation</Link>
           <Link className="block" to="/renter/profile">Profile</Link>

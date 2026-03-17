@@ -2,6 +2,8 @@ import { BookingStatus, Prisma } from "@prisma/client";
 import { prisma } from "../../config/database";
 import { makeMeta } from "../../utils/pagination";
 
+const requireApprovedAgency = process.env.NODE_ENV === "production";
+
 const overlapWhere = (pickupDate: Date, returnDate: Date) => ({
   OR: [
     {
@@ -21,7 +23,7 @@ export const carsService = {
     const where: Prisma.CarWhereInput = {
       isDeleted: false,
       isAvailable: true,
-      agency: { isApproved: true }
+      ...(requireApprovedAgency ? { agency: { isApproved: true } } : {})
     };
 
     if (query.city) where.city = String(query.city);
@@ -80,7 +82,12 @@ export const carsService = {
 
   async byId(id: string) {
     return prisma.car.findFirst({
-      where: { id, isDeleted: false, isAvailable: true, agency: { isApproved: true } },
+      where: {
+        id,
+        isDeleted: false,
+        isAvailable: true,
+        ...(requireApprovedAgency ? { agency: { isApproved: true } } : {})
+      },
       include: {
         photos: true,
         agency: {
@@ -115,26 +122,69 @@ export const carsService = {
 
     const [total, data] = await Promise.all([
       prisma.car.count({ where }),
-      prisma.car.findMany({ where, include: { photos: true }, skip, take: limit, orderBy: { createdAt: "desc" } })
+      prisma.car.findMany({
+        where,
+        include: {
+          photos: true,
+          bookings: {
+            where: {
+              status: { in: [BookingStatus.APPROVED, BookingStatus.ACTIVE] },
+              returnDate: { gte: new Date() }
+            },
+            select: { id: true },
+            take: 1
+          }
+        },
+        skip,
+        take: limit,
+        orderBy: { createdAt: "desc" }
+      })
     ]);
 
-    return { data, meta: makeMeta(total, page, limit) };
+    return {
+      data: data.map((car) => {
+        const currentlyRented = car.bookings.length > 0;
+        return {
+          ...car,
+          currentlyRented,
+          rentalStatus: currentlyRented ? "RENTED" : "AVAILABLE"
+        };
+      }),
+      meta: makeMeta(total, page, limit)
+    };
   },
 
   async create(agencyId: string, input: any) {
-    return prisma.car.create({
+    const { photoUrls = [], ...payload } = input;
+
+    const created = await prisma.car.create({
       data: {
         agencyId,
-        ...input,
-        pricePerDay: new Prisma.Decimal(input.pricePerDay),
-        depositAmount: new Prisma.Decimal(input.depositAmount)
+        ...payload,
+        pricePerDay: new Prisma.Decimal(payload.pricePerDay),
+        depositAmount: new Prisma.Decimal(payload.depositAmount)
       }
     });
+
+    if (Array.isArray(photoUrls) && photoUrls.length > 0) {
+      await prisma.carPhoto.createMany({
+        data: photoUrls.map((url: string, index: number) => ({
+          carId: created.id,
+          url,
+          isPrimary: index === 0,
+          order: index
+        }))
+      });
+    }
+
+    return prisma.car.findUnique({ where: { id: created.id }, include: { photos: true } });
   },
 
   async update(agencyId: string, id: string, input: any) {
     const existing = await prisma.car.findUnique({ where: { id } });
     if (!existing || existing.agencyId !== agencyId) return null;
+
+    const { photoUrls = [], ...payload } = input;
 
     const hasActiveBooking = await prisma.booking.count({
       where: {
@@ -147,14 +197,28 @@ export const carsService = {
       throw new Error("Cannot update a car with active bookings");
     }
 
-    return prisma.car.update({
+    const updated = await prisma.car.update({
       where: { id },
       data: {
-        ...input,
-        ...(input.pricePerDay ? { pricePerDay: new Prisma.Decimal(input.pricePerDay) } : {}),
-        ...(input.depositAmount ? { depositAmount: new Prisma.Decimal(input.depositAmount) } : {})
+        ...payload,
+        ...(payload.pricePerDay ? { pricePerDay: new Prisma.Decimal(payload.pricePerDay) } : {}),
+        ...(payload.depositAmount ? { depositAmount: new Prisma.Decimal(payload.depositAmount) } : {})
       }
     });
+
+    if (Array.isArray(photoUrls) && photoUrls.length > 0) {
+      const existingPhotoCount = await prisma.carPhoto.count({ where: { carId: id } });
+      await prisma.carPhoto.createMany({
+        data: photoUrls.map((url: string, index: number) => ({
+          carId: id,
+          url,
+          isPrimary: existingPhotoCount === 0 && index === 0,
+          order: existingPhotoCount + index
+        }))
+      });
+    }
+
+    return prisma.car.findUnique({ where: { id: updated.id }, include: { photos: true } });
   },
 
   async remove(agencyId: string, id: string) {

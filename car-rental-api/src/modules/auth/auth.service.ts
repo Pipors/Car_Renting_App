@@ -7,7 +7,7 @@ const refreshTokenCookie = "refreshToken";
 
 const makeRefreshExpiresAt = () => {
   const now = new Date();
-  now.setDate(now.getDate() + 7);
+  now.setHours(now.getHours() + 48);
   return now;
 };
 
@@ -17,12 +17,24 @@ const sanitizeUser = (user: {
   userType: "RENTER" | "AGENCY" | "ADMIN";
   firstName: string;
   lastName: string;
+  agency?: {
+    id: string;
+    name: string;
+    isApproved: boolean;
+  } | null;
 }) => ({
   id: user.id,
   email: user.email,
   userType: user.userType,
   firstName: user.firstName,
-  lastName: user.lastName
+  lastName: user.lastName,
+  agency: user.agency
+    ? {
+        id: user.agency.id,
+        name: user.agency.name,
+        isApproved: user.agency.isApproved
+      }
+    : undefined
 });
 
 export const authService = {
@@ -55,7 +67,7 @@ export const authService = {
       });
 
       if (input.userType === "AGENCY") {
-        await tx.agency.create({
+        const agency = await tx.agency.create({
           data: {
             userId: createdUser.id,
             name: input.agencyName!,
@@ -65,9 +77,17 @@ export const authService = {
             licenseNumber: input.licenseNumber!
           }
         });
+
+        return {
+          ...createdUser,
+          agency
+        };
       }
 
-      return createdUser;
+      return {
+        ...createdUser,
+        agency: null
+      };
     });
 
     const tokenPayload = {
@@ -87,7 +107,7 @@ export const authService = {
       }
     });
 
-    return { user: sanitizeUser(tokenPayload as any), accessToken, refreshToken };
+    return { user: sanitizeUser(user as any), accessToken, refreshToken };
   },
 
   async login(email: string, password: string) {
