@@ -35,8 +35,8 @@ export const carsService = {
 
   get: (id: string) => api.get<Car>(`/cars/${id}`).then((r) => r.data),
 
-  create: (data: Omit<Car, "id" | "agencyId" | "createdAt" | "available" | "agency">) =>
-    api.post<Car>("/cars", data).then((r) => r.data),
+  create: (data: FormData) =>
+    api.post<Car>("/cars", data, { headers: { "Content-Type": undefined } }).then((r) => r.data),
 
   update: (id: string, data: Partial<Car>) =>
     api.put<Car>(`/cars/${id}`, data).then((r) => r.data),

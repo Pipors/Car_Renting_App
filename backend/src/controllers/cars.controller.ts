@@ -7,9 +7,9 @@ const prisma = new PrismaClient();
 const CarSchema = z.object({
   make: z.string().min(1),
   model: z.string().min(1),
-  year: z.number().int().min(1900).max(new Date().getFullYear() + 1),
-  pricePerDay: z.number().positive(),
-  depositAmount: z.number().positive(),
+  year: z.coerce.number().int().min(1900).max(new Date().getFullYear() + 1),
+  pricePerDay: z.coerce.number().positive(),
+  depositAmount: z.coerce.number().positive(),
   description: z.string().optional(),
   imageUrl: z.string().url().optional(),
 });
@@ -62,8 +62,9 @@ export async function createCar(req: Request, res: Response, next: NextFunction)
       res.status(403).json({ message: "Agency profile not found" });
       return;
     }
+    const imageUrl = req.file ? `/uploads/${req.file.filename}` : data.imageUrl;
     const car = await prisma.car.create({
-      data: { ...data, agencyId: agency.id },
+      data: { ...data, agencyId: agency.id, imageUrl },
     });
     res.status(201).json(car);
   } catch (err) {
@@ -86,9 +87,12 @@ export async function updateCar(req: Request, res: Response, next: NextFunction)
       res.status(403).json({ message: "Forbidden" });
       return;
     }
+    const imageUrl = req.file
+      ? `/uploads/${req.file.filename}`
+      : data.imageUrl ?? car.imageUrl;
     const updated = await prisma.car.update({
       where: { id: req.params.id },
-      data,
+      data: { ...data, imageUrl },
     });
     res.json(updated);
   } catch (err) {

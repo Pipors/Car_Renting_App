@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -17,7 +17,6 @@ const schema = z.object({
   pricePerDay: z.coerce.number().positive("Must be positive"),
   depositAmount: z.coerce.number().positive("Must be positive"),
   description: z.string().optional(),
-  imageUrl: z.string().url("Must be a valid URL").optional().or(z.literal("")),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -26,18 +25,31 @@ export function PostCarPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [serverError, setServerError] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (imagePreview) URL.revokeObjectURL(imagePreview);
+    };
+  }, [imagePreview]);
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
   });
 
   const mutation = useMutation({
-    mutationFn: (values: FormValues) =>
-      carsService.create({
-        ...values,
-        imageUrl: values.imageUrl || undefined,
-        description: values.description || undefined,
-      }),
+    mutationFn: (values: FormValues) => {
+      const fd = new FormData();
+      fd.append("make", values.make);
+      fd.append("model", values.model);
+      fd.append("year", String(values.year));
+      fd.append("pricePerDay", String(values.pricePerDay));
+      fd.append("depositAmount", String(values.depositAmount));
+      if (values.description) fd.append("description", values.description);
+      if (imageFile) fd.append("image", imageFile);
+      return carsService.create(fd);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["agency-cars"] });
       navigate("/agency/dashboard");
@@ -46,6 +58,12 @@ export function PostCarPage() {
       setServerError(err.response?.data?.message ?? "Failed to create car");
     },
   });
+
+  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null;
+    setImageFile(file);
+    setImagePreview(file ? URL.createObjectURL(file) : null);
+  }
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -88,9 +106,21 @@ export function PostCarPage() {
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor="imageUrl">Image URL (optional)</Label>
-              <Input id="imageUrl" {...register("imageUrl")} placeholder="https://..." />
-              {errors.imageUrl && <p className="text-xs text-destructive">{errors.imageUrl.message}</p>}
+              <Label htmlFor="image">Car Photo (optional)</Label>
+              <Input
+                id="image"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={handleImageChange}
+                className="cursor-pointer"
+              />
+              {imagePreview && (
+                <img
+                  src={imagePreview}
+                  alt="Preview"
+                  className="mt-2 w-full h-48 object-cover rounded-md border"
+                />
+              )}
             </div>
 
             <div className="space-y-1">

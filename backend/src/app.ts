@@ -5,6 +5,7 @@ import helmet from "helmet";
 import compression from "compression";
 import morgan from "morgan";
 import rateLimit from "express-rate-limit";
+import path from "path";
 
 import authRoutes from "./routes/auth.routes";
 import carsRoutes from "./routes/cars.routes";
@@ -40,6 +41,16 @@ const limiter = rateLimit({
   legacyHeaders: false,
 });
 app.use(limiter);
+
+// ─── Static file serving (uploaded car images) ──────────────
+app.use(
+  "/uploads",
+  (_req, res, next) => {
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    next();
+  },
+  express.static(path.join(process.cwd(), "uploads"))
+);
 
 // ─── Routes ───────────────────────────────────────────────────
 app.use("/api/auth", authRoutes);
